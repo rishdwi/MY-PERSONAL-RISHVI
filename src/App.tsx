@@ -53,6 +53,8 @@ export default function App() {
   const [response, setResponse] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [needsKey, setNeedsKey] = useState(false);
 
   const sessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -117,12 +119,51 @@ export default function App() {
   }, []);
 
   // --- Session Management ---
+  const checkApiKey = async () => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const isPlaceholder = !apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "";
+    
+    if (isPlaceholder) {
+      if (typeof (window as any).aistudio?.hasSelectedApiKey === 'function') {
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          setNeedsKey(true);
+          return null;
+        }
+      } else {
+        setNeedsKey(true);
+        return null;
+      }
+    }
+    setNeedsKey(false);
+    return apiKey;
+  };
+
+  const handleOpenKeySelector = async () => {
+    if (typeof (window as any).aistudio?.openSelectKey === 'function') {
+      await (window as any).aistudio.openSelectKey();
+      // After opening, we assume the user might have selected one
+      setNeedsKey(false);
+      startSession();
+    } else {
+      setErrorMessage("Please add your GEMINI_API_KEY in the Secrets panel (gear icon -> Secrets).");
+    }
+  };
+
   const startSession = async () => {
     if (isActive) return;
     setIsConnecting(true);
+    setErrorMessage(null);
+    setResponse("");
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = await checkApiKey();
+      if (!apiKey) {
+        setIsConnecting(false);
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       // Setup Audio Context for recording and playback
       if (!audioContextRef.current) {
@@ -250,6 +291,7 @@ export default function App() {
           onclose: () => stopSession(),
           onerror: (err) => {
             console.error("Live API Error:", err);
+            setErrorMessage("Network connection lost. Please try again.");
             stopSession();
           }
         }
@@ -289,9 +331,11 @@ export default function App() {
 
       source.connect(processor);
       processor.connect(audioContextRef.current!.destination);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to start session:", err);
+      setErrorMessage(err.message || "Failed to connect to RISHVI. Please check your internet and API key.");
       setIsConnecting(false);
+      stopSession();
     }
   };
 
@@ -379,47 +423,81 @@ export default function App() {
 
         {/* Status & Controls */}
         <div className="flex flex-col items-center gap-8 w-full">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={isActive ? stopSession : startSession}
-              disabled={isConnecting}
-              className={`px-8 py-4 rounded-full font-bold uppercase tracking-widest text-xs transition-all duration-300 flex items-center gap-3 ${
-                isActive 
-                  ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20' 
-                  : 'bg-white text-black hover:bg-orange-500 hover:text-white'
-              } ${isConnecting ? 'opacity-50 cursor-wait' : ''}`}
+          {needsKey ? (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-4 p-8 rounded-3xl border border-orange-500/30 bg-orange-500/5 backdrop-blur-xl text-center"
             >
-              {isConnecting ? (
-                "Connecting..."
-              ) : isActive ? (
-                <>
-                  <MicOff className="w-4 h-4" /> Stop RISHVI
-                </>
-              ) : (
-                <>
-                  <Mic className="w-4 h-4" /> Wake RISHVI
-                </>
-              )}
-            </button>
-
-            {isActive && (
+              <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center mb-2">
+                <ExternalLink className="w-6 h-6 text-orange-500" />
+              </div>
+              <h3 className="text-xl font-bold uppercase tracking-tight">API Key Required</h3>
+              <p className="text-sm text-white/60 max-w-xs">
+                RISHVI requires a Gemini API key to function. Please select or add your key to continue.
+              </p>
               <button
-                onClick={toggleMute}
-                className={`p-4 rounded-full border transition-all ${
-                  isMuted ? 'bg-orange-500 border-orange-500 text-black' : 'border-white/10 text-white hover:bg-white/5'
-                }`}
+                onClick={handleOpenKeySelector}
+                className="mt-2 px-8 py-3 bg-orange-500 text-black font-bold rounded-full hover:bg-orange-600 transition-colors uppercase tracking-widest text-[10px]"
               >
-                {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                Select API Key
               </button>
-            )}
-          </div>
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[10px] text-white/40 underline hover:text-white/60 mt-2"
+              >
+                Learn about Gemini API billing
+              </a>
+            </motion.div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={isActive ? stopSession : startSession}
+                disabled={isConnecting}
+                className={`px-8 py-4 rounded-full font-bold uppercase tracking-widest text-xs transition-all duration-300 flex items-center gap-3 ${
+                  isActive 
+                    ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20' 
+                    : 'bg-white text-black hover:bg-orange-500 hover:text-white'
+                } ${isConnecting ? 'opacity-50 cursor-wait' : ''}`}
+              >
+                {isConnecting ? (
+                  "Connecting..."
+                ) : isActive ? (
+                  <>
+                    <MicOff className="w-4 h-4" /> Stop RISHVI
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4" /> Wake RISHVI
+                  </>
+                )}
+              </button>
+
+              {isActive && (
+                <button
+                  onClick={toggleMute}
+                  className={`p-4 rounded-full border transition-all ${
+                    isMuted ? 'bg-orange-500 border-orange-500 text-black' : 'border-white/10 text-white hover:bg-white/5'
+                  }`}
+                >
+                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Response Text */}
           <div className="w-full min-h-[100px] bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />
-            <p className="text-sm text-white/60 font-mono uppercase tracking-wider mb-2">System Response</p>
-            <p className="text-lg font-light leading-relaxed">
-              {isActive ? (
+            <div className={`absolute top-0 left-0 w-1 h-full ${errorMessage ? 'bg-red-500' : 'bg-orange-500'}`} />
+            <p className={`text-sm font-mono uppercase tracking-wider mb-2 ${errorMessage ? 'text-red-400' : 'text-white/60'}`}>
+              {errorMessage ? 'System Error' : 'System Response'}
+            </p>
+            <p className={`text-lg font-light leading-relaxed ${errorMessage ? 'text-red-200' : 'text-white'}`}>
+              {errorMessage ? (
+                errorMessage
+              ) : isActive ? (
                 response || "Listening for your command..."
               ) : (
                 "RISHVI is offline. Click the button above to start your session."
