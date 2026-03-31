@@ -1,11 +1,23 @@
-<div align="center">
+# RISHVI AI Assistant
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+RISHVI is a high-performance, voice-activated browser assistant built with React and the Gemini 3.1 Flash Live API.
 
-  <h1>Built with AI Studio</h2>
+## Features
+- **Voice Commands:** Natural, low-latency conversation.
+- **Web Search:** Search Google via voice.
+- **Media Control:** Play music on YouTube or Spotify.
+- **WhatsApp:** Send messages to specific numbers.
+- **Navigation:** Open any website instantly.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## Setup
+1. Clone this repository.
+2. Install dependencies: `npm install`
+3. Set your `GEMINI_API_KEY` in a `.env` file.
+4. Run the development server: `npm run dev`
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
-
-</div>
+## Tech Stack
+- React 19
+- Tailwind CSS 4
+- Gemini 3.1 Flash Live API
+- Framer Motion
+- Lucide Icons

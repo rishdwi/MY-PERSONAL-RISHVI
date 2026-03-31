@@ -1,0 +1,7 @@
+{
+  "name": "RISHVI AI Assistant",
+  "description": "A voice-activated browser assistant that can search the web, open websites, play music, and send WhatsApp messages with a beautiful, interactive UI.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
